@@ -9,4 +9,4 @@ urilib_parse(URIString, URI) :-
     % TODO: implementare il predicato
     !.
 
-% end: urilib-parse.pl
+%%% end: urilib-parse.pl
