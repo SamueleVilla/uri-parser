@@ -129,7 +129,7 @@ end
 Parses an expression of the form ['.' <Identifier>]*
 """
 function grammar_char_identifier_star(str :: String, char, pred) :: Parser
-    if !isempty(str) && first(str) != char
+    if isempty(str) || first(str) != char
         ([], str)
     else
         (res, rest) = grammar_one_or_more(tail(str), pred)
