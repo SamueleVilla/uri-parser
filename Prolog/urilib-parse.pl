@@ -1,4 +1,6 @@
 %%% -*- Mode: Prolog -*-
+%%% begin: urilib-parse.pl
+%%%
 %%% 914194 Villa Samuele
 %%% 909506 Sorrentino Raoul
 
@@ -7,4 +9,4 @@ urilib_parse(URIString, URI) :-
     % TODO: implementare il predicato
     !.
 
-% urilib-parse.pl ends here.
+% end: urilib-parse.pl
