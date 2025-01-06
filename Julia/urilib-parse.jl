@@ -10,7 +10,7 @@ const IPV4_LENGTH_RANGE = 7:15
 const IPV4_DECIMAL_LENGTH_RANGE = 1:3
 const IPV4_DOTS = 3
 
-const PROTOCOL_PORTS = Dict(
+const DEFAULT_PORTS = Dict(
     "http" => "80",
     "https" => "443",
     "ftp" => "21",
@@ -23,7 +23,7 @@ struct URI
   scheme :: String
   userInfo :: Union{String, Nothing}
   host :: Union{String, Nothing}
-  port :: Union{String, Nothing} 
+  port :: String 
   path :: Union{String, Nothing}
   query :: Union{String, Nothing}
   fragment :: Union{String, Nothing}
@@ -52,8 +52,7 @@ is_valid_identifier(char) =
 Predicate ::= <letter> <character>
 """
 is_valid_host_identifier(char) =
-    is_valid_identifier(char) &&
-        char != '.'
+    is_valid_identifier(char)
 
 """
 Predicate ::= <digit>+
@@ -98,31 +97,18 @@ vec_to_string(vec) = isnothing(vec) ? nothing : join(vec)
 Type alias for defining the Parser data type
 """
 const Parser = Tuple{Union{Nothing, Vector{Char}}, String}
-const OptionalParser = Tuple{Union{Nothing, Vector{Char}}, String}
 
 """
-Throws an error and stop the parser execution
+Throws the error and stop the parser execution
 """
 parser_error() = error("ParserError: Invalid URI")
 function parser_error(message :: String)
     error("ParserError: Invalid URI - $message")
 end
 
-"""
-Backtracks if the given parser doesn't end with the given char
-"""
-function parser_endswith(parser :: Parser, char :: Char) :: Parser
-    (res, rest) = parser
-
-    if first(rest) == char
-        return (res, tail(rest))
-    else
-        return ([], vec_to_string(res) * rest)
-    end
-end
 
 """
-Parses an expression ::= <Identifier>*
+Parses the expression ::= <Identifier>*
 The identifier is composed of characters satisfying the given predicate
 """
 function grammar_zero_or_more(str :: String, pred) :: Parser
@@ -135,7 +121,7 @@ function grammar_zero_or_more(str :: String, pred) :: Parser
 end
 
 """
-Parses an expression ::= <Identifier>+
+Parses the expression ::= <Identifier>+
 The identifier is composed of characters satisfying the given predicate
 """
 function grammar_one_or_more(str :: String, pred) :: Parser
@@ -148,23 +134,37 @@ function grammar_one_or_more(str :: String, pred) :: Parser
 end
 
 """
-Parses an expression ::= ['Char' <Identifier>]*
+Parses the expression ::= ['Char' <Identifier>]*
 """
-function grammar_char_identifier_star(str :: String, char :: Char, pred) :: Parser
+function grammar_startswith_char_ric(str :: String, char :: Char, parser_func) :: Parser
     if isempty(str) || first(str) != char
         ([], str)
     else
-        (res, rest) = grammar_one_or_more(tail(str), pred)
-        (res_ric, rest_ric) = grammar_char_identifier_star(rest, char, pred)
+        (res, rest) = parser_func(tail(str))
+        (res_ric, rest_ric) = grammar_startswith_char_ric(rest, char, parser_func)
 
         ([char, res..., res_ric...], rest_ric)
     end
 end
 
 """
-Parses an expression ::=  ['Char' <Identifier>]
+Parses the expression := [<Identifier> 'Char']
+Backtracks if the given parser func doesn't end with the given char
 """
-function grammar_preceded_by_char(str :: String, char, parser_func) :: Parser
+function grammar_endswith_char(str :: String, char :: Char, parser_func) :: Parser
+    (res, rest) = parser_func(str)
+
+    if first(rest) == char
+        return (res, tail(rest))
+    else
+        return ([], vec_to_string(res) * rest)
+    end
+end
+
+"""
+Parses the expression ::=  ['Char' <Identifier>]
+"""
+function grammar_startswith_char(str :: String, char, parser_func) :: Parser
     if !isempty(str) && first(str) == char
         if isempty(tail(str))
             parser_error("Unexpected end of the string after `$char`")
@@ -176,22 +176,19 @@ function grammar_preceded_by_char(str :: String, char, parser_func) :: Parser
     end
 end
 
+"""
+Parses the expression ::= <Identifier> ['Char' <Identifier>]*
+"""
+function grammar_id_startswith_char_ric(str:: String, char :: Char, parser_func)
+    (res, rest) = parser_func(str)
+    (res_ric, rest_ric ) =grammar_startswith_char_ric(rest, char, parser_func)
 
-"""
-Parses the expression := scheme ':'
-"""
-function parse_scheme(str :: String) :: Parser
-    (res, rest) = parser_endswith(grammar_one_or_more(str, is_valid_identifier), ':') 
-    if isempty(res)
-        parser_error("Unexpected char `$(peek(rest))` in scheme")
-    else
-        (res, rest)
-    end
+    ([res..., res_ric...], rest_ric)
 end
 
 """
-Parses the expression ::= authority ['/' [path] ['?' query] ['#fragment']]
-                      | ['/'] [path] ['?' query] ['#' fragment]
+Parses the expression: generic-scheme ::= authority ['/' [path] ['?' query] ['#fragment']]
+                                          | ['/'] [path] ['?' query] ['#' fragment]
 """
 function parse_generic_scheme_syntax(str :: String)
     (userinfo, host, port, auth_rest) = parse_authority(str)
@@ -207,10 +204,10 @@ function parse_generic_scheme_syntax(str :: String)
     end
 
     (query, rest_query) =
-        grammar_preceded_by_char(rest_path, '?', parse_query)
+        grammar_startswith_char(rest_path, '?', parse_query)
 
     (fragment, rest_fragment) =
-        grammar_preceded_by_char(rest_query, '#', parse_fragment)
+        grammar_startswith_char(rest_query, '#', parse_fragment)
 
     (isempty(userinfo) ? nothing : userinfo,
      isempty(host) ? nothing : host,
@@ -221,16 +218,31 @@ function parse_generic_scheme_syntax(str :: String)
 end
 
 """
-Parses the expression ::= '//' [userinfo '@'] host [':' port]
+Parses the expression: mailto ::= userinfo [ '@' host ]
+"""
+function parse_mailto_scheme_syntax(str :: String)
+    (userinfo, userinfo_rest) = grammar_one_or_more(str, is_valid_identifier)
+    (host, host_rest) = grammar_startswith_char(userinfo_rest, '@', parse_host) 
+
+    (userinfo, isempty(host) ? nothing : host)
+end
+
+"""
+Parses the expression: authority ::= '//' [userinfo '@'] host [':' port]
 """
 function parse_authority(str :: String)
     if length(str) >= 2 && str[1] == '/' && str[2] == '/'
+
         (userinfo, userinfo_rest) =
-            parse_userinfo(str[3:end])
+            grammar_endswith_char(str[3:end],
+                                  '@',
+                                  parse_userinfo)
+        
         (host, host_rest) =
             parse_host(userinfo_rest)
+
         (port, port_rest) =
-            grammar_preceded_by_char(host_rest,
+            grammar_startswith_char(host_rest,
                                      ':',
                                      parse_port)
         
@@ -243,35 +255,6 @@ function parse_authority(str :: String)
     end
 end
 
-"""
-Parses the expression ::= [ userinfo '@']
-"""
-function parse_userinfo(str :: String) :: Parser
-    (res, rest) = parser_endswith(grammar_one_or_more(str, is_valid_identifier), '@')
-end
-
-"""
-Parses the expression ::= <Host-identifier> [ '.' <Host-identifier> ] | <IP-Address>
-"""
-function parse_host(str :: String) :: Parser
-
-    # try to parse an ipv4 address
-    (ipv4_res, ipv4_rest) = parse_ipv4(str)
-
-    # if not an ipv4 address parse the hostname
-    if isnothing(ipv4_res)
-        (host_res, host_rest) =
-            grammar_one_or_more(str, is_valid_host_identifier)
-        (host_res_ric, host_rest_ric) =
-            grammar_char_identifier_star(host_rest,
-                                         '.',
-                                         is_valid_host_identifier)
-
-        ([host_res...; host_res_ric...], host_rest_ric)
-    else
-        (ipv4_res, ipv4_rest)
-    end
-end
 
 """
 Function to verify that a vector of char is a valid Ipv4 decimal octet
@@ -298,35 +281,47 @@ function parse_ipv4_ric(str :: String) :: Parser
             (res, rest)
         end
     else
-        parser_error("Invalid Ipv4 address")
+        parser_error("Invalid Ipv4 address octet range")
     end
 end
 
 """
-Parses the expression ::= <IP-Address>
+Parses the expression <IP-Address> ::= <NNN.NNN.NNN>
 """
-function parse_ipv4(str :: String) :: OptionalParser
+function parse_ipv4(str :: String) :: Parser
     (res, rest) = parse_ipv4_ric(str)
 
-    if length(res) in IPV4_LENGTH_RANGE
-        if count(c -> c == '.', res) != IPV4_DOTS
-            parser_error("Invalid Ipv4 address")
-        else
-            (res, rest)
-        end
+    if isempty(res)
+        return ([], rest)
+    end
+
+    if !(length(res) in IPV4_LENGTH_RANGE) ||
+        count(c -> c == '.', res) != IPV4_DOTS
+        parser_error("Invalid Ipv4 address octet")
+    end
+
+    (res, rest)
+end
+
+"""
+Parses the expression:  host ::= <host-identifier> [ '.' <host-identifier> ]* | <IP-Address>
+"""
+function parse_host(str :: String) :: Parser
+
+    # try to parse the ipv4 address
+    (ipv4_res, ipv4_rest) = parse_ipv4(str)
+
+    # if not the ipv4 address parse the hostname
+    if isempty(ipv4_res)
+        grammar_id_startswith_char_ric(ipv4_rest, '.', parse_host_identifier)
     else
-        (nothing, rest)
+        (ipv4_res, ipv4_rest)
     end
 end
 
 """
-Parses the expression ::= <digit>+
+Parses the expession: [ '/' ]
 """
-function parse_port(str :: String) :: Parser
-    grammar_one_or_more(str, is_valid_digit)
-end
-
-
 function parse_slash(str :: String) :: Parser
     if !isempty(str) && first(str) == '/'
         ([first(str)], tail(str))
@@ -336,17 +331,45 @@ function parse_slash(str :: String) :: Parser
 end
 
 """
-Parses the expression ::= <Identifier> [ '/' <Identifier>]*
+Parses the expression ::= [ <Identifier> | ['/' <Identifier> ]* ]
 """
-function parse_path(str :: String) :: OptionalParser
-    (res, rest) = grammar_zero_or_more(str, is_valid_identifier)
-    if isempty(res)
-        ([], rest)
-    else
-        (res_ric, rest_ric) = grammar_char_identifier_star(rest, '/', is_valid_identifier)
+function parse_path(str :: String) :: Parser
+    grammar_id_startswith_char_ric(str, '/', parse_identifier)
+end
 
-        ([res..., res_ric...], rest_ric)
-    end
+"""
+Parses the expression: <identifier> ::= <character>+
+"""
+function parse_identifier(str :: String)
+    grammar_zero_or_more(str, is_valid_identifier)
+end
+
+"""
+Parses the expression: scheme ::= <identifier>
+"""
+function parse_scheme(str :: String) :: Parser
+    parse_identifier(str)
+end
+
+"""
+Parses the expression: userinfo ::= <identifier>
+"""
+function parse_userinfo(str :: String) :: Parser
+    parse_identifier(str)
+end
+
+"""
+Parses the expression: <host-Identifier> ::= <letter> <character>+
+"""
+function parse_host_identifier(str :: String) :: Parser
+    grammar_one_or_more(str, is_valid_host_identifier)
+end
+
+"""
+Parses the expression: port ::= <digit>+
+"""
+function parse_port(str :: String) :: Parser
+    grammar_one_or_more(str, is_valid_digit)
 end
 
 """
@@ -367,27 +390,48 @@ end
 ### Main function
 
 function urilib_parse(uri :: String) :: URI
-    (scheme, rest) = parse_scheme(uri)
+    (scheme, rest) =
+        grammar_endswith_char(uri, ':', parse_scheme)
 
-    
-    (userinfo, host, port, path, query, fragment) = parse_generic_scheme_syntax(rest)
+    if isempty(scheme)
+        parse_error("Unexpected char `$(peek(rest)) after scheme")
+    end
 
     scheme = vec_to_string(scheme)
-    userinfo = vec_to_string(userinfo)
-    host = vec_to_string(host)
-    port = vec_to_string(port)
-    path = vec_to_string(path)
-    query = vec_to_string(query)
-    fragment = vec_to_string(fragment)
 
-    URI(
-        scheme,
-        userinfo,
-        host,
-        isnothing(port) ? get(PROTOCOL_PORTS, scheme, "80") : port,
-        path,
-        query,
-        fragment)
+    if scheme == "mailto"
+       (userinfo, host) = parse_mailto_scheme_syntax(rest) 
+
+        userinfo = vec_to_string(userinfo)
+        host = vec_to_string(host)
+
+        URI(scheme,
+            userinfo,
+            host,
+            get(DEFAULT_PORTS, scheme, "80"),
+            nothing,
+            nothing,
+            nothing)
+
+    else
+        (userinfo, host, port, path, query, fragment) = parse_generic_scheme_syntax(rest)
+
+        userinfo = vec_to_string(userinfo)
+        host = vec_to_string(host)
+        port = vec_to_string(port)
+        path = vec_to_string(path)
+        query = vec_to_string(query)
+        fragment = vec_to_string(fragment)
+
+        URI(
+            scheme,
+            userinfo,
+            host,
+            isnothing(port) ? get(DEFAULT_PORTS, scheme, "80") : port,
+            path,
+            query,
+            fragment)
+    end
 end
 
 ### end: urilib_parse.jl
