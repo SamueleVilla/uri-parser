@@ -139,7 +139,8 @@ function grammar_startswith_exp(str :: String, p1, p2) :: Parser
 end
 
 """
-Parses the expression := [ <Exp> 'Char' ]
+Parses the expression
+[ <Exp> 'Char' ]
 Backtracks if the given parser func doesn't end with the given char
 """
 function grammar_endswith_char(str :: String,
@@ -155,7 +156,8 @@ function grammar_endswith_char(str :: String,
 end
 
 """
-Parses the expression ::= ['Char' <Exp> ]*
+Parses the expression
+['Char' <Exp> ]*
 """
 function grammar_startswith_char_ric(str :: String,
                                      char :: Char,
@@ -173,7 +175,8 @@ function grammar_startswith_char_ric(str :: String,
 end
 
 """
-Parses the expression ::=  ['Char' <Exp>]
+Parses the expression
+['Char' <Exp>]
 """
 function grammar_startswith_char(str :: String, char, parser_func) :: Parser
     if !isempty(str) && first(str) == char
@@ -188,6 +191,7 @@ function grammar_startswith_char(str :: String, char, parser_func) :: Parser
 end
 
 ### ------------------------------------------------------------------------ ###
+isalpha(c) = isdigit(c) || isletter(c)
 
 parse_letter(str :: String) =
     grammar_match_char(str, isletter)
@@ -196,13 +200,18 @@ parse_digit(str :: String) =
     grammar_match_char(str, isdigit)
 
 parse_alnum(str :: String) =
-    grammar_match_char(str, c -> isletter(c) || isdigit(c))
+    grammar_match_char(str, isalpha)
 
 parse_character(str :: String) =
     grammar_match_char(str,
-                       c -> isletter(c)
-                       || isdigit(c)
+                       c ->
+                           isalpha(c)
                        || c in ['_', '=', '+', '-', '&'])
+
+parse_id44_char(str :: String) =
+    grammar_match_char(str,
+                       c -> isalpha(c)
+                       || c in ['.'])
 
 """
 Function to verify that a vector of char is a valid Ipv4 decimal octet
@@ -211,7 +220,8 @@ is_ipv4_octet(vec :: Vector{Char}) =
     parse(Int, vec_to_string(map(n -> n - '0', vec))) in 0:255
 
 """
-Parses the expression ::= <NNN.NNN.NNN.NNN> with N digit
+Parses the expression
+IP-Adress ::= <NNN.NNN.NNN.NNN> with N digit
 """
 function parse_ipv4_ric(str :: String) :: Parser
     (res, rest) = grammar_exp_star(str, parse_digit)
@@ -234,7 +244,8 @@ function parse_ipv4_ric(str :: String) :: Parser
 end
 
 """
-Parses the expression <IP-Address> ::= <NNN.NNN.NNN>
+Parses the expression
+IP-Address ::= <NNN.NNN.NNN>
 """
 function parse_ipv4(str :: String) :: Parser
     (res, rest) = parse_ipv4_ric(str)
@@ -253,7 +264,8 @@ end
 
 
 """
-Parses the expession: [ '/' ]
+Parses the expession
+[ '/' ]
 """
 function parse_slash(str :: String) :: Parser
     if !isempty(str) && first(str) == '/'
@@ -264,7 +276,8 @@ function parse_slash(str :: String) :: Parser
 end
 
 """
-Parses the expression: <identifier> ::= <character>+
+Parses the expression
+identifier ::= <character>+
 """
 function parse_identifier(str :: String) :: Parser
     grammar_exp_plus(str, parse_character)
@@ -275,11 +288,18 @@ Parses the expression
 host-dentifier ::= <letter> <alfanum>*
 """
 function parse_host_id(str :: String) :: Parser
-    grammar_startswith_exp(str :: String,
-                           str -> grammar_exp_plus(str, parse_letter),
-                           str -> grammar_exp_star(str, parse_alnum))
+    let
+        (res, rest) = parse_letter(str)
+        if isempty(res)
+            parser_error("host identifier must start with a letter")
+        else
+            let
+                (res_ric, rest_ric) = grammar_exp_star(rest, parse_alnum)
+                ([res..., res_ric...], rest_ric)
+            end
+        end
+    end
 end
-
 """
 Parses the expression
 scheme ::= <identifier>
@@ -352,8 +372,49 @@ function parse_fragment(str :: String) :: Parser
     grammar_exp_plus(str, parse_character)
 end
 
+function parse_id8(str :: String)
+    let
+        (res, rest) = grammar_match_char(str, isletter)
+        if isempty(res)
+            parser_error("id8 must start with a letter")
+        else
+            let
+                (res_ric, rest_ric) = grammar_exp_star(str, parse_alnum)
+                ([res..., res_ric...], rest_ric)
+            end
+        end
+    end
+end
+
+function parse_id44(str :: String)
+    let
+        (res, rest) = parse_letter(str)
+        if isempty(res)
+            parser_error("i44 must start with a letter")
+        else
+            let
+                (res_ric, rest_ric) =
+                    grammar_exp_star(rest, parse_id44_char)
+                
+                id44 = [res..., res_ric...]
+                
+                if length(id44) > 44 || id44[end] == '.'
+                    parser_error("id44 cannot exceed 44 characters or end with `.`")
+                else
+                    (id44, rest_ric)
+                end
+            end
+        end
+    end
+end
+
+function parse_zos_path(str :: String) :: Parser
+    
+end
+
 """
-Parses the expression: authority ::= '//' [userinfo '@'] host [':' port]
+Parses the expression
+authority ::= '//' [userinfo '@'] host [':' port]
 """
 function parse_authority(str :: String)
     if length(str) >= 2 && str[1] == '/' && str[2] == '/'
@@ -430,7 +491,7 @@ end
 
 """
 Parses the expression
-tel | fax ::= userinfo
+tel|fax ::= userinfo
 """
 function parse_telfax_scheme_syntax(str :: String)
     (userinfo, _) = parse_userinfo(str)
