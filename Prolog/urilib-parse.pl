@@ -1,7 +1,9 @@
-% Bertoli Michelangelo 894446
-
-% urilib_parse(UriString, URI).
-% URI = uri(Scheme, Userinfo, Host, Port, Path, Query, Fragment).
+%%% -*- Mode: Prolog -*-
+%%% begin: urilib-parse.pl
+%%%
+%%% 894446 Bertoli Michelangelo
+%%% 914194 Villa Samuele
+%%% 909506 Sorrentino Raoul
 
 urilib_parse(URIString, URI) :- 
     string_codes(URIString, Codes),
@@ -148,32 +150,45 @@ host(PostUserinfo, Host, PostHost) :-
     ip(Rest2, ThirdSegment, [46 | Rest3]),
     ip(Rest3, FourthSegment, PostHost),
     atom_codes(Host, HostCode).
-    % append(HostCode, PostHost, PostUserinfo),
     /*
     HostCode = [A1, A2, A3, 46, B1, B2, B3, 46, C1, C2, C3, 46, D1, D2, D3],
     append(HostCode, PostHost, PostUserinfo),
     atom_codes(Host, HostCode).*/
 
 ip([A | PostUserinfo], [A], PostUserinfo) :-
-    digit([A]).
+    digit([A]),
+    number_codes(Number, [A]),
+    between(0, 255, Number).
 
 ip([A, B | PostUserinfo], [A, B], PostUserinfo) :-
-    digit([A, B]).
+    digit([A, B]),
+    number_codes(Number, [A, B]),
+    between(0, 255, Number).
 
 ip([A, B, C | PostUserinfo], [A, B, C], PostUserinfo) :-
-    digit([A, B, C]).
+    digit([A, B, C]),
+    number_codes(Number, [A, B, C]),
+    between(0, 255, Number).
     
 
 
 domain_name(PostUserinfo, Host, PostHost) :-
-    append(HostCodes, PostHost, PostUserinfo),
+    append([A | HostCodes], PostHost, PostUserinfo),
+    identificatore_host(A),
+    HostCodes \= [],
     % \+ member(46, Post),
-    split_segments(HostCodes, Segments),
+    split_segments([A | HostCodes], Segments),
     validate_segments(Segments),
-    atom_codes(Host, HostCodes).
+    atom_codes(Host, [A | HostCodes]).
+
+domain_name(PostUserinfo, Host, PostHost) :-
+    append([A | HostCodes], PostHost, PostUserinfo),
+    HostCodes = [], 
+    identificatore_host(A),
+    % \+ member(46, Post),
+    atom_codes(Host, [A | HostCodes]).
 
 % Divide una lista di codici in segmenti separati da '.'
-
 split_segments([], [[]]).
 split_segments([46 | Rest], [[] | Segments]) :- % 46 = '.'
     split_segments(Rest, Segments).
@@ -183,7 +198,7 @@ split_segments([Code | Rest], [[Code | Segment] | Segments]) :-
 validate_segments([]). 
 validate_segments([Segment | Rest]) :-
     Segment \= [],                 
-    identificatore_host(Segment),  
+    identificatore_v2(Segment),  
     validate_segments(Rest).       
 
 port(PostHost, 80, PostHost).
@@ -233,12 +248,12 @@ query(PostPath, [], PostPath).
 
 query([63 | PostPath], Query, PostQuery) :- % 63 ?
     append(QueryCodes, PostQuery, PostPath),
-    identificatore_query(QueryCodes),
+    identificatore(QueryCodes),
     atom_codes(Query, QueryCodes).
 
 fragment(PostQuery, [], PostQuery).
 
-fragment([35 | PostQuery], Fragment, PostFragment) :-
+fragment([35 | PostQuery], Fragment, PostFragment) :- % 35 #
     append(FragmentCodes, PostFragment, PostQuery),
     identificatore(FragmentCodes),
     atom_codes(Fragment, FragmentCodes).
@@ -297,26 +312,34 @@ digit([Digit | Digits]) :-
     code_type(Digit, digit),
     digit(Digits).
 
-identificatore_host([Char | Chars]) :-
-    code_type(Char, alpha),
-    identificatore(Chars).
+identificatore_host(Char) :-
+    code_type(Char, alpha).
+
+identificatore_v2([Char | []]) :-
+    code_type(Char, alnum).
+
+identificatore_v2([Char | Chars]) :-
+    code_type(Char, alnum),
+    identificatore_v2(Chars).
 
 identificatore([Char | []]) :-
-    code_type(Char, csym).
+    character(Char).
 
 identificatore([Char | Chars]) :-
-    code_type(Char, csym),
+    character(Char),
     identificatore(Chars).
 
-identificatore_query([Char | []]) :-
-    Char \= 35,
-    code_type(Char, ascii). 
+character(Char) :-
+    code_type(Char, csym).
 
-identificatore_query([Char | Chars]) :-
-    Char \= 35,
-    % si potrebbe mettere ascii o cysm ma chiedere al prof
-    code_type(Char, ascii),
-    identificatore_query(Chars).
+character(Char) :-
+    Char = 61. % =
+
+character(Char) :-
+    Char = 43. % +
+
+character(Char) :-
+    Char = 45. % -
 
 id44([Char | []]) :-
     Char \= 46,
