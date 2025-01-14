@@ -32,6 +32,10 @@ parse_scheme(Codes, Scheme, PostScheme) :-
 
 % Solo schema
 parse_afterScheme(Scheme, [], URI) :-
+    Scheme \= mailto,
+    Scheme \= news,
+    Scheme \= tel,
+    Scheme \= fax,
     URI = uri(Scheme, [], [], 80, [], [], []).
 
 % Schemi speciali
@@ -64,6 +68,7 @@ parse_afterScheme(Scheme, PostScheme, URI) :-
 
 parse_afterScheme(Scheme, PostScheme, URI) :-
     Scheme = zos,
+    PostScheme \= [],
     authority(PostScheme, Userinfo, Host, Port, PostAuthority),
     path_zos(PostAuthority, Path, PostPath),
     query(PostPath, Query, PostQuery),
@@ -145,10 +150,10 @@ host(PostUserinfo, Host, PostHost) :-
     %Aggiungere controllo between
     % Come da specifica NNN.NNN.NNN.NNN
     append(HostCode, PostHost, PostUserinfo),
-    ip(PostUserinfo, FirstSegment, [46 | Rest1]),
-    ip(Rest1, SecondSegment, [46 | Rest2]),
-    ip(Rest2, ThirdSegment, [46 | Rest3]),
-    ip(Rest3, FourthSegment, PostHost),
+    ip(PostUserinfo, _, [46 | Rest1]),
+    ip(Rest1, _, [46 | Rest2]),
+    ip(Rest2, _, [46 | Rest3]),
+    ip(Rest3, _, PostHost),
     atom_codes(Host, HostCode).
     /*
     HostCode = [A1, A2, A3, 46, B1, B2, B3, 46, C1, C2, C3, 46, D1, D2, D3],
@@ -196,9 +201,10 @@ split_segments([Code | Rest], [[Code | Segment] | Segments]) :-
     split_segments(Rest, [Segment | Segments]).
 
 validate_segments([]). 
-validate_segments([Segment | Rest]) :-
-    Segment \= [],                 
-    identificatore_v2(Segment),  
+validate_segments([[A |Segment] | Rest]) :-
+    [A |Segment] \= [],
+    identificatore_host(A),
+    identificatore_v2([A |Segment]),
     validate_segments(Rest).       
 
 port(PostHost, 80, PostHost).
