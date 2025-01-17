@@ -13,9 +13,6 @@ const DEFAULT_PORTS = Dict(
     "http" => "80",
     "https" => "443",
     "ftp" => "21",
-    "smtp" => "25",
-    "ssh" => "22",
-    "telnet" => "23"
 )
 
 ### Type definitions
@@ -535,8 +532,10 @@ function parse_afterscheme(scheme :: String, str :: String)
         parse_news(scheme, str)
     elseif scheme in ["tel", "fax"]
         parse_telfax(scheme, str)
-    else
+    elseif scheme in ["http", "https", "ftp", "zos"]
         parse_genericzos(scheme, str)
+    else
+        parser_error("Unknown scheme `$scheme`")
     end
 end
 
@@ -567,7 +566,7 @@ function urilib_parse(uri::String) :: URI
         parser_error("Unexpected char after scheme")
     end
 
-    parse_afterscheme(vec_to_string(scheme), scheme_rest)
+    parse_afterscheme(lowercase(vec_to_string(scheme)), scheme_rest)
 end
 
 ### end: urilib_parse.jl
