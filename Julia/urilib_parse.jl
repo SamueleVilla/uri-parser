@@ -80,6 +80,16 @@ function parser_error(message :: String)
 end
 
 """
+    """
+function check_parser_end(str :: String)
+    if isempty(str)
+        true
+    else
+        parser_error("Unexpected char `$(peek(str))` found")
+    end
+end
+
+"""
 Parses the expression <Exp> with the given predicate function
 """
 function grammar_match_char(str :: String, pred) :: Parser
@@ -452,10 +462,12 @@ function parse_genericzos(scheme :: String, str :: String) :: URI
         (query, rest_query) = grammar_startswith_char(rest_path,
                                                       '?',
                                                       parse_query)
-        (fragment, _) = grammar_startswith_char(rest_query,
+        (fragment, fragment_rest) = grammar_startswith_char(rest_query,
             '#',
             parse_fragment)
 
+        check_parser_end(fragment_rest)
+        
         URI(
             scheme,
             vec_to_string(userinfo),
@@ -482,7 +494,9 @@ mailto ::= userinfo [ '@' host ]
 function parse_mailto(scheme :: String, str :: String) :: URI
     let
         (userinfo, userinfo_rest) = parse_userInfo(str)
-        (host, _) = grammar_startswith_char(userinfo_rest, '@', parse_host)
+        (host, host_rest) = grammar_startswith_char(userinfo_rest, '@', parse_host)
+
+        check_parser_end(host_rest)
 
         URI(scheme,
             vec_to_string(userinfo),
@@ -495,7 +509,10 @@ Parses the expression
 news ::= host
 """
 function parse_news(scheme :: String, str :: String) :: URI
-    (host, _) = parse_host(str)
+    (host, host_rest) = parse_host(str)
+
+    check_parser_end(host_rest)
+    
     URI(scheme, nothing, vec_to_string(host))
 end
 
@@ -504,7 +521,10 @@ Parses the expression
 tel|fax ::= userinfo
 """
 function parse_telfax(scheme :: String, str :: String) :: URI
-    (userinfo, _) = parse_userInfo(str)
+    (userinfo, userinfo_rest) = parse_userInfo(str)
+
+    check_parser_end(userinfo_rest)
+
     URI(scheme, vec_to_string(userinfo), nothing)
 end
 
