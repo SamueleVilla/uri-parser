@@ -121,8 +121,10 @@ include("urilib_parse.jl")
         @test urilib_fragment(uri) === nothing
 
         @test_throws ErrorException urilib_parse("http?://example.com")
-        @test_throws ErrorException urilib_parse(
-            "https://user:pass@example.com:443/path/to/resource?query#fragment")
+        @test_throws ErrorException
+        urilib_parse(
+            "https://user:pass@example.com:443/path/to/resource?query#fragment"
+        )
 
         @test_throws ErrorException urilib_parse("http://1")
         @test_throws ErrorException urilib_parse("http://e.1.5.e")
@@ -140,6 +142,8 @@ include("urilib_parse.jl")
         @test_throws ErrorException urilib_parse("http://example.com/path?#")
 
         @test_throws ErrorException urilib_parse("http:/example.com")
+
+        @test_throws ErrorExcetion urilib_parse("scheme://example.com")
     end
 
     @testset "Zos scheme syntax" begin
