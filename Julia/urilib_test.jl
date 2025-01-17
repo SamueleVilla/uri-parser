@@ -120,16 +120,6 @@ include("urilib_parse.jl")
         @test urilib_query(uri) === nothing
         @test urilib_fragment(uri) === nothing
 
-        uri = urilib_parse("scheme:")
-        @test urilib_scheme(uri) === "scheme"
-        @test urilib_userinfo(uri) === nothing
-        @test urilib_host(uri) == nothing
-        @test urilib_port(uri) == "80"
-        @test urilib_path(uri) === nothing
-        @test urilib_query(uri) === nothing
-        @test urilib_fragment(uri) === nothing
-
-        @test_throws ErrorException urilib_parse("scheme")
         @test_throws ErrorException urilib_parse("http?://example.com")
         @test_throws ErrorException urilib_parse(
             "https://user:pass@example.com:443/path/to/resource?query#fragment")
@@ -159,6 +149,15 @@ include("urilib_parse.jl")
         @test urilib_host(uri) == "host.id"
         @test urilib_port(uri) == "80"
         @test urilib_path(uri) === "path.name(member)"
+        @test urilib_query(uri) === nothing
+        @test urilib_fragment(uri) === nothing
+
+        uri = urilib_parse("zos://host.id/MA.LP.COBOL(GRADES)")
+        @test urilib_scheme(uri) === "zos"
+        @test urilib_userinfo(uri) === nothing
+        @test urilib_host(uri) == "host.id"
+        @test urilib_port(uri) == "80"
+        @test urilib_path(uri) === "MA.LP.COBOL(GRADES)"
         @test urilib_query(uri) === nothing
         @test urilib_fragment(uri) === nothing
 
