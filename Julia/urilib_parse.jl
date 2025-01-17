@@ -77,7 +77,8 @@ function parser_error(message :: String)
 end
 
 """
-    """
+Check if the parser has not left remaining characters
+"""
 function check_parser_end(str :: String)
     if isempty(str)
         true
@@ -403,11 +404,13 @@ path ::= <id44> ['(' <id8> ')']
 function parse_zos_path(str :: String) :: Parser
     (id44, id44_rest) = parse_id44(str)
     if !isempty(id44_rest) && first(id44_rest) == '('
-        (id8, id8_rest) = parse_id8(tail(id44_rest))
-        if isempty(id8_rest) || first(id8_rest) != ')'
-            parser_error("Missing closing bracket `)`")
-        else
-            ([id44..., '(', id8..., ')'], tail(id8_rest))
+        let
+            (id8, id8_rest) = parse_id8(tail(id44_rest))
+            if isempty(id8_rest) || first(id8_rest) != ')'
+                parser_error("Missing closing bracket `)`")
+            else
+                ([id44..., '(', id8..., ')'], tail(id8_rest))
+            end
         end
     else
         (id44, id44_rest)
@@ -491,7 +494,9 @@ mailto ::= userinfo [ '@' host ]
 function parse_mailto(scheme :: String, str :: String) :: URI
     let
         (userinfo, userinfo_rest) = parse_userInfo(str)
-        (host, host_rest) = grammar_startswith_char(userinfo_rest, '@', parse_host)
+        (host, host_rest) = grammar_startswith_char(userinfo_rest,
+                                                    '@',
+                                                    parse_host)
 
         check_parser_end(host_rest)
 
