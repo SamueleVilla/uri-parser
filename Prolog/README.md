@@ -15,7 +15,7 @@ Supporto completo per:
 ## Installazione
 
 ```prolog
-consult("urilib-parse.pl")
+consult("urilib-parse.pl").
 ```
 
 ## Utilizzo
