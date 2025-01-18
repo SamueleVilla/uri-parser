@@ -13,7 +13,7 @@ Libreria Julia per l'analisi di URI con supporto per schemi come mailto, news, t
 Aggiungi il file nel progetto Julia e importa con:
 
 ```julia
-include("urilib_parse.jl")
+include("urilib-parse.jl")
 ```
 
 ## Utilizzo
