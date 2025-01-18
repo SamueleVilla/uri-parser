@@ -24,8 +24,10 @@ consult("urilib-parse.pl").
 
 Effettua parsing e visualizzazione degli URI o utilizza schemi URI speciali tramite semplici comandi Prolog. Ad esempio:
 
+```prolog
 ?- urilib_parse("http://esempio.com", URI).
 ?- urilib_display(URI).
+```
 
 ### Struttura e Validazioni
 
