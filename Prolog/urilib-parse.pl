@@ -428,3 +428,5 @@ id8([Char | []]) :-
 id8([Char | Chars]) :-
     code_type(Char, alnum),
     id8(Chars).
+
+%%% end: urilib-parse.pl
