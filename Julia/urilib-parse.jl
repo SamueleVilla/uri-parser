@@ -5,19 +5,6 @@
 ### 914194 Villa Samuele
 ### 909506 Sorrentino Raoul
 
-module URILib
-
-export URILib_structure,
-    urilib_parse,
-    urilib_display,
-    urilib_scheme,
-    urilib_userinfo,
-    urilib_host,
-    urilib_port,
-    urilib_path,
-    urilib_query,
-    urilib_fragment
-    
 ### Constants
 const IPV4_LENGTH_RANGE = 7:15
 const IPV4_DECIMAL_LENGTH_RANGE = 1:3
@@ -564,6 +551,5 @@ function urilib_parse(uri :: String) :: URILib_structure
     parse_afterscheme(lowercase(vec_to_string(scheme)), scheme_rest)
 end
 
-end
 ### end: urilib_parse.jl
 
