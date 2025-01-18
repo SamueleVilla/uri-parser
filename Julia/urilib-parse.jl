@@ -1,10 +1,23 @@
-## -*- Mode: Julia -*-
+### -*- Mode: Julia -*-
 ### begin: urilib-parse.jl
 ###
 ### 894446 Bertoli Michelangelo
 ### 914194 Villa Samuele
 ### 909506 Sorrentino Raoul
 
+module URILib
+
+export URILib_structure,
+    urilib_parse,
+    urilib_display,
+    urilib_scheme,
+    urilib_userinfo,
+    urilib_host,
+    urilib_port,
+    urilib_path,
+    urilib_query,
+    urilib_fragment
+    
 ### Constants
 const IPV4_LENGTH_RANGE = 7:15
 const IPV4_DECIMAL_LENGTH_RANGE = 1:3
@@ -16,7 +29,7 @@ const DEFAULT_PORTS = Dict(
 )
 
 ### Type definitions
-struct URI
+struct URILib_structure
     scheme :: String
     userinfo :: Union{String, Nothing}
     host :: Union{String, Nothing}
@@ -26,8 +39,8 @@ struct URI
     fragment :: Union{String, Nothing}
 end
 
-URI(scheme, userInfo, host, port, path, query, fragment) =
-    URI(scheme,
+URILib_structure(scheme, userInfo, host, port, path, query, fragment) =
+    URILib_structure(scheme,
         userInfo,
         host,
         isnothing(port) ? get(DEFAULT_PORTS, scheme, "80") : port,
@@ -35,8 +48,8 @@ URI(scheme, userInfo, host, port, path, query, fragment) =
         query,
         fragment)
 
-URI(scheme, userInfo, host) =
-    URI(scheme,
+URILib_structure(scheme, userInfo, host) =
+    URILib_structure(scheme,
         userInfo,
         host,
         nothing,
@@ -71,9 +84,9 @@ const Parser = Tuple{Union{Nothing, Vector{Char}}, String}
 """
 Throws the error and stop the parser execution
 """
-parser_error() = error("ParserError: Invalid URI")
+parser_error() = error("ParserError: Invalid URILib_structure")
 function parser_error(message :: String)
-    error("ParserError: Invalid URI - $message")
+    error("ParserError: Invalid URILib_structure - $message")
 end
 
 """
@@ -106,8 +119,7 @@ function grammar_exp_star(str :: String, parse_func) :: Parser
     if isempty(res)
         (res, rest)
     else
-        let
-            (res_ric, rest_ric) = grammar_exp_star(rest, parse_func)
+        let (res_ric, rest_ric) = grammar_exp_star(rest, parse_func)
             ([res..., res_ric...], rest_ric)
         end
     end
@@ -120,8 +132,9 @@ function grammar_exp_plus(str :: String, parse_func) :: Parser
     (res, rest) = grammar_exp_star(str, parse_func)
     if isempty(res)
         parser_error()
+    else
+        (res, rest)
     end
-    (res, rest)
 end
 
 """
@@ -149,12 +162,10 @@ function grammar_startswith_char_ric(str :: String,
     if isempty(str) || first(str) != char
         ([], str)
     else
-        let
-            (res, rest) = parser_func(tail(str))
+        let (res, rest) = parser_func(tail(str)),
             (res_ric, rest_ric) = grammar_startswith_char_ric(rest,
-                char,
-                parser_func)
-
+                                                              char,
+                                                              parser_func)
             ([char, res..., res_ric...], rest_ric)
         end
     end
@@ -167,9 +178,9 @@ function grammar_startswith_char(str :: String, char, parser_func) :: Parser
     if !isempty(str) && first(str) == char
         if isempty(tail(str))
             parser_error("Unexpected end of the string after `$char`")
+        else
+            parser_func(tail(str))
         end
-
-        parser_func(tail(str))
     else
         ([], str)
     end
@@ -212,23 +223,20 @@ Parses the expression
 IP-Address ::= <NNN.NNN.NNN.NNN> with N digit
 """
 function parse_ipv4_ric(str :: String) :: Parser
-    let
-        (res, rest) = grammar_exp_star(str, parse_digit)
-        if isempty(res)
-            return ([], rest)
-        elseif length(res) in IPV4_DECIMAL_LENGTH_RANGE &&
-               is_ipv4_octet(res)
-            if !isempty(rest) && first(rest) == '.'
-                let
-                    (res_ric, rest_ric) = parse_ipv4_ric(tail(rest))
-                    ([res...; '.'; res_ric...], rest_ric)
-                end
-            else
-                (res, rest)
+    (res, rest) = grammar_exp_star(str, parse_digit)
+    if isempty(res)
+        return ([], rest)
+    elseif length(res) in IPV4_DECIMAL_LENGTH_RANGE &&
+        is_ipv4_octet(res)
+        if !isempty(rest) && first(rest) == '.'
+            let (res_ric, rest_ric) = parse_ipv4_ric(tail(rest))
+                ([res..., '.', res_ric...], rest_ric)
             end
         else
-            parser_error("Invalid Ipv4 address octet range")
+            (res, rest)
         end
+    else
+        parser_error("Invalid Ipv4 address octet range")
     end
 end
 
@@ -239,14 +247,13 @@ IP-Address ::= <NNN.NNN.NNN>
 function parse_ipv4(str :: String) :: Parser
     (res, rest) = parse_ipv4_ric(str)
     if isempty(res)
-        return ([], rest)
-    end
-
-    if !(length(res) in IPV4_LENGTH_RANGE) ||
-       count(c -> c == '.', res) != IPV4_DOTS
+        ([], rest)
+    elseif !(length(res) in IPV4_LENGTH_RANGE) ||
+        count(c -> c == '.', res) != IPV4_DOTS
         parser_error("Invalid Ipv4 address octet")
+    else
+        (res, rest)
     end
-    (res, rest)
 end
 
 """
@@ -274,15 +281,12 @@ Parses the expression
 host-identifier ::= <letter> <alfanum>*
 """
 function parse_host_id(str :: String) :: Parser
-    let
-        (res, rest) = parse_letter(str)
-        if isempty(res)
-            parser_error("host identifier must start with a letter")
-        else
-            let
-                (res_ric, rest_ric) = grammar_exp_star(rest, parse_alpha)
-                ([res..., res_ric...], rest_ric)
-            end
+    (res, rest) = parse_letter(str)
+    if isempty(res)
+        parser_error("host identifier must start with a letter")
+    else
+        let (res_ric, rest_ric) = grammar_exp_star(rest, parse_alpha)
+            ([res..., res_ric...], rest_ric)
         end
     end
 end
@@ -309,22 +313,18 @@ host ::= <host-identifier> [ '.' <host-identifier> ]*
      | <IP-Address>
 """
 function parse_host(str :: String) :: Parser
-    let
-        # try to parse the ipv4 address
-        (ipv4_res, ipv4_rest) = parse_ipv4(str)
+    # try to parse the ipv4 address
+    (ipv4_res, ipv4_rest) = parse_ipv4(str)
 
-        # if is not an ipv4 address parse the hostname
-        if !isempty(ipv4_res)
-            (ipv4_res, ipv4_rest)
-        else
-            let
-                (host, rest) = parse_host_id(str)
-                (host_ric, rest_ric) = grammar_startswith_char_ric(rest,
-                    '.',
-                    parse_host_id)
-
-                ([host..., host_ric...], rest_ric)
-            end
+    # if is not an ipv4 address parse the hostname
+    if !isempty(ipv4_res)
+        (ipv4_res, ipv4_rest)
+    else
+        let (host, rest) = parse_host_id(str),
+            (host_ric, rest_ric) = grammar_startswith_char_ric(rest,
+                                                               '.',
+                                                               parse_host_id)
+            ([host..., host_ric...], rest_ric)
         end
     end
 end
@@ -342,11 +342,10 @@ Parses the expression
 path ::= [ <Identifier> ['/' <Identifier> ]* ]
 """
 function parse_path(str :: String) :: Parser
-    let
-        (id, id_rest) = grammar_exp_star(str, parse_character)
+    let (id, id_rest) = grammar_exp_star(str, parse_character),
         (id_ric, id_rest_ric) = grammar_startswith_char_ric(id_rest,
-            '/',
-            parse_identifier)
+                                                            '/',
+                                                            parse_identifier)
         ([id..., id_ric...], id_rest_ric)
     end
 end
@@ -388,12 +387,10 @@ function parse_id44(str :: String) :: Parser
     (id44, rest) = grammar_exp_star(str, parse_id44_char)
     if isempty(id44)
         (id44, rest)
-    else
-        if !isletter(first(id44)) || length(id44) > 44 || id44[end] == '.'
+    elseif !isletter(first(id44)) || length(id44) > 44 || id44[end] == '.'
             parser_error("Invalid id44")
-        else
-            (id44, rest)
-        end
+    else
+        (id44, rest)
     end
 end
 
@@ -404,8 +401,7 @@ path ::= <id44> ['(' <id8> ')']
 function parse_zos_path(str :: String) :: Parser
     (id44, id44_rest) = parse_id44(str)
     if !isempty(id44_rest) && first(id44_rest) == '('
-        let
-            (id8, id8_rest) = parse_id8(tail(id44_rest))
+        let (id8, id8_rest) = parse_id8(tail(id44_rest))
             if isempty(id8_rest) || first(id8_rest) != ')'
                 parser_error("Missing closing bracket `)`")
             else
@@ -423,18 +419,17 @@ authority ::= '//' [userinfo '@'] host [':' port]
 """
 function parse_authority(str :: String)
     if length(str) >= 2 && str[1] == '/' && str[2] == '/'
-        let
-            (userInfo, userInfo_rest) = grammar_endswith_char(str[3:end],
-                '@',
-                parse_userInfo)
-            (host, host_rest) = parse_host(userInfo_rest)
+        let (userInfo, userInfo_rest) = grammar_endswith_char(str[3:end],
+                                                              '@',
+                                                              parse_userInfo),
+            (host, host_rest) = parse_host(userInfo_rest),
             (port, port_rest) = grammar_startswith_char(host_rest,
                                                         ':',
                                                         parse_port)
             (userInfo,
-                host,
-                port,
-                port_rest)
+             host,
+             port,
+             port_rest)
         end
     else
         ([], [], [], str)
@@ -446,29 +441,25 @@ Parses the expression
 generic-scheme ::= authority ['/' [path] ['?' query] ['#fragment']]
                | ['/'] [path] ['?' query] ['#' fragment]
 """
-function parse_genericzos(scheme :: String, str :: String) :: URI
-    let
-        (userinfo, host, port, auth_rest) = parse_authority(str)
-
-        no_auth = str == auth_rest
-        (slash, slash_rest) = parse_slash(auth_rest)
+function parse_genericzos(scheme :: String, str :: String) :: URILib_structure
+    let (userinfo, host, port, auth_rest) = parse_authority(str),
+        no_auth = str == auth_rest,
+        (slash, slash_rest) = parse_slash(auth_rest),
+        (path, rest_path) = path_choice(scheme, slash_rest),
+        (query, rest_query) = grammar_startswith_char(rest_path,
+                                                      '?',
+                                                      parse_query),
+        (fragment, fragment_rest) = grammar_startswith_char(rest_query,
+                                                            '#',
+                                                            parse_fragment)
 
         if !no_auth && isempty(slash) && !isempty(slash_rest)
             parser_error("Expected char `/` after authority")
         end
 
-        (path, rest_path) = path_choice(scheme, slash_rest)
-
-        (query, rest_query) = grammar_startswith_char(rest_path,
-                                                      '?',
-                                                      parse_query)
-        (fragment, fragment_rest) = grammar_startswith_char(rest_query,
-            '#',
-            parse_fragment)
-
         check_parser_end(fragment_rest)
         
-        URI(
+        URILib_structure(
             scheme,
             vec_to_string(userinfo),
             vec_to_string(host),
@@ -491,16 +482,15 @@ end
 Parses the expression
 mailto ::= userinfo [ '@' host ]
 """
-function parse_mailto(scheme :: String, str :: String) :: URI
-    let
-        (userinfo, userinfo_rest) = parse_userInfo(str)
+function parse_mailto(scheme :: String, str :: String) :: URILib_structure
+    let (userinfo, userinfo_rest) = parse_userInfo(str),
         (host, host_rest) = grammar_startswith_char(userinfo_rest,
                                                     '@',
                                                     parse_host)
 
         check_parser_end(host_rest)
 
-        URI(scheme,
+        URILib_structure(scheme,
             vec_to_string(userinfo),
             vec_to_string(host))
     end
@@ -510,24 +500,24 @@ end
 Parses the expression
 news ::= host
 """
-function parse_news(scheme :: String, str :: String) :: URI
+function parse_news(scheme :: String, str :: String) :: URILib_structure
     (host, host_rest) = parse_host(str)
 
     check_parser_end(host_rest)
     
-    URI(scheme, nothing, vec_to_string(host))
+    URILib_structure(scheme, nothing, vec_to_string(host))
 end
 
 """
 Parses the expression
 tel|fax ::= userinfo
 """
-function parse_telfax(scheme :: String, str :: String) :: URI
+function parse_telfax(scheme :: String, str :: String) :: URILib_structure
     (userinfo, userinfo_rest) = parse_userInfo(str)
 
     check_parser_end(userinfo_rest)
 
-    URI(scheme, vec_to_string(userinfo), nothing)
+    URILib_structure(scheme, vec_to_string(userinfo), nothing)
 end
 
 function parse_afterscheme(scheme :: String, str :: String)
@@ -546,15 +536,15 @@ end
 
 ### API functions
 
-urilib_scheme(uri :: URI) = uri.scheme
-urilib_userinfo(uri :: URI) = uri.userinfo
-urilib_host(uri :: URI) = uri.host
-urilib_port(uri :: URI) = uri.port
-urilib_path(uri :: URI) = uri.path
-urilib_query(uri :: URI) = uri.query
-urilib_fragment(uri :: URI) = uri.fragment
+urilib_scheme(uri :: URILib_structure) = uri.scheme
+urilib_userinfo(uri :: URILib_structure) = uri.userinfo
+urilib_host(uri :: URILib_structure) = uri.host
+urilib_port(uri :: URILib_structure) = uri.port
+urilib_path(uri :: URILib_structure) = uri.path
+urilib_query(uri :: URILib_structure) = uri.query
+urilib_fragment(uri :: URILib_structure) = uri.fragment
 
-function urilib_display(uri :: URI, stream = stdout)
+function urilib_display(uri :: URILib_structure, stream = stdout)
     println(stream, "Scheme:      $(urilib_scheme(uri))")
     println(stream, "Userinfo:    $(urilib_userInfo(uri))")
     println(stream, "Host:        $(urilib_host(uri))")
@@ -564,15 +554,16 @@ function urilib_display(uri :: URI, stream = stdout)
     println(stream, "Fragment:    $(urilib_fragment(uri))")
 end
 
-function urilib_parse(uri::String) :: URI
+function urilib_parse(uri :: String) :: URILib_structure
     (scheme, scheme_rest) =
         grammar_endswith_char(uri, ':', parse_scheme)
     if isempty(scheme)
         parser_error("Unexpected char after scheme")
     end
-
+    
     parse_afterscheme(lowercase(vec_to_string(scheme)), scheme_rest)
 end
 
+end
 ### end: urilib_parse.jl
 

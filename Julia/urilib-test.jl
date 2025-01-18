@@ -2,7 +2,8 @@
 
 using Test
 
-include("urilib_parse.jl")
+include("urilib-parse.jl")
+using .URILib
 
 @testset "Test suite for urilib parser" begin
 
