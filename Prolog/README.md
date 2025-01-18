@@ -26,7 +26,9 @@ Effettua parsing e visualizzazione degli URI o utilizza schemi URI speciali tram
 
 ```prolog
 ?- urilib_parse("http://esempio.com", URI).
-?- urilib_display(URI).
+```
+```prolog
+?- urilib_display(uri(http, [], 'esempio.com', 80, [], [], [])).
 ```
 
 ### Struttura e Validazioni
