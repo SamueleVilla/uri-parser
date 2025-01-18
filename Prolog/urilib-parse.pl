@@ -163,7 +163,7 @@ authority([S1, S2 | AuthorityCodes], Userinfo, Host, Port, []) :-
 
 % authority presente e cose dopo
 authority([S1, S2 | AuthorityCodes], Userinfo, Host, Port,
-    [47 | PostAuthority]) :-
+	  [47 | PostAuthority]) :-
     S1 = 47,
     S2 = 47,
     userinfo(AuthorityCodes, Userinfo, PostUserinfo),
