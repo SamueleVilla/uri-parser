@@ -30,12 +30,24 @@ parse_scheme(Codes, Scheme, PostScheme) :-
     atom_codes(Scheme, SchemeCodes),
     identificatore(SchemeCodes).
 
-% Solo schema
+% Solo schema http
 parse_afterScheme(Scheme, [], URI) :-
-    Scheme \= mailto,
-    Scheme \= news,
-    Scheme \= tel,
-    Scheme \= fax,
+    Scheme = http,
+    URI = uri(Scheme, [], [], 80, [], [], []).
+
+% Solo schema https
+parse_afterScheme(Scheme, [], URI) :-
+    Scheme = https,
+    URI = uri(Scheme, [], [], 80, [], [], []).
+
+% Solo schema ftp
+parse_afterScheme(Scheme, [], URI) :-
+    Scheme = ftp,
+    URI = uri(Scheme, [], [], 80, [], [], []).
+
+% Solo schema zos
+parse_afterScheme(Scheme, [], URI) :-
+    Scheme = zos,
     URI = uri(Scheme, [], [], 80, [], [], []).
 
 % Schemi speciali
@@ -76,26 +88,58 @@ parse_afterScheme(Scheme, PostScheme, URI) :-
     PostFragment = [],
     URI = uri(Scheme, Userinfo, Host, Port, Path, Query, Fragment).
 
-% Solo authority e schema
+% Solo authority e schema http
 
 parse_afterScheme(Scheme, PostScheme, URI) :-
-    Scheme \= mailto,
-    Scheme \= news,
-    Scheme \= tel,
-    Scheme \= fax,
-    Scheme \= zos,
+    Scheme = http,
     PostScheme \= [],
     authority(PostScheme, Userinfo, Host, Port, []),
     URI = uri(Scheme, Userinfo, Host, Port, [], [], []).
 
-%   Parse per schema generico
+% Parse per schema generico http
 
 parse_afterScheme(Scheme, PostScheme, URI) :-
-    Scheme \= mailto,
-    Scheme \= news,
-    Scheme \= tel,
-    Scheme \= fax,
-    Scheme \= zos,
+    Scheme = http,
+    authority(PostScheme, Userinfo, Host, Port, PostAuthority), 
+    PostAuthority \= [],
+    path(PostAuthority, Path, PostPath),
+    query(PostPath, Query, PostQuery),
+    fragment(PostQuery, Fragment, PostFragment),
+    PostFragment = [],
+    URI = uri(Scheme, Userinfo, Host, Port, Path, Query, Fragment).
+
+% Solo authority e schema https
+
+parse_afterScheme(Scheme, PostScheme, URI) :-
+    Scheme = https,
+    PostScheme \= [],
+    authority(PostScheme, Userinfo, Host, Port, []),
+    URI = uri(Scheme, Userinfo, Host, Port, [], [], []).
+
+% Parse per schema generico https
+
+parse_afterScheme(Scheme, PostScheme, URI) :-
+    Scheme = https,
+    authority(PostScheme, Userinfo, Host, Port, PostAuthority), 
+    PostAuthority \= [],
+    path(PostAuthority, Path, PostPath),
+    query(PostPath, Query, PostQuery),
+    fragment(PostQuery, Fragment, PostFragment),
+    PostFragment = [],
+    URI = uri(Scheme, Userinfo, Host, Port, Path, Query, Fragment).
+
+% Solo authority e schema ftp
+
+parse_afterScheme(Scheme, PostScheme, URI) :-
+    Scheme = ftp,
+    PostScheme \= [],
+    authority(PostScheme, Userinfo, Host, Port, []),
+    URI = uri(Scheme, Userinfo, Host, Port, [], [], []).
+
+% Parse per schema generico ftp
+
+parse_afterScheme(Scheme, PostScheme, URI) :-
+    Scheme = ftp,
     authority(PostScheme, Userinfo, Host, Port, PostAuthority), 
     PostAuthority \= [],
     path(PostAuthority, Path, PostPath),
@@ -118,7 +162,8 @@ authority([S1, S2 | AuthorityCodes], Userinfo, Host, Port, []) :-
     port(PostHost, Port, []).
 
 % authority presente e cose dopo
-authority([S1, S2 | AuthorityCodes], Userinfo, Host, Port, [47 | PostAuthority]) :-
+authority([S1, S2 | AuthorityCodes], Userinfo, Host, Port,
+    [47 | PostAuthority]) :-
     S1 = 47,
     S2 = 47,
     userinfo(AuthorityCodes, Userinfo, PostUserinfo),
@@ -147,7 +192,6 @@ host(PostUserinfo, Host, PostHost) :-
     domain_name(PostUserinfo, Host, PostHost).
 
 host(PostUserinfo, Host, PostHost) :-
-    %Aggiungere controllo between
     % Come da specifica NNN.NNN.NNN.NNN
     append(HostCode, PostHost, PostUserinfo),
     ip(PostUserinfo, _, [46 | Rest1]),
@@ -155,10 +199,6 @@ host(PostUserinfo, Host, PostHost) :-
     ip(Rest2, _, [46 | Rest3]),
     ip(Rest3, _, PostHost),
     atom_codes(Host, HostCode).
-    /*
-    HostCode = [A1, A2, A3, 46, B1, B2, B3, 46, C1, C2, C3, 46, D1, D2, D3],
-    append(HostCode, PostHost, PostUserinfo),
-    atom_codes(Host, HostCode).*/
 
 ip([A | PostUserinfo], [A], PostUserinfo) :-
     digit([A]),
@@ -174,14 +214,11 @@ ip([A, B, C | PostUserinfo], [A, B, C], PostUserinfo) :-
     digit([A, B, C]),
     number_codes(Number, [A, B, C]),
     between(0, 255, Number).
-    
-
 
 domain_name(PostUserinfo, Host, PostHost) :-
     append([A | HostCodes], PostHost, PostUserinfo),
     identificatore_host(A),
     HostCodes \= [],
-    % \+ member(46, Post),
     split_segments([A | HostCodes], Segments),
     validate_segments(Segments),
     atom_codes(Host, [A | HostCodes]).
@@ -190,17 +227,19 @@ domain_name(PostUserinfo, Host, PostHost) :-
     append([A | HostCodes], PostHost, PostUserinfo),
     HostCodes = [], 
     identificatore_host(A),
-    % \+ member(46, Post),
     atom_codes(Host, [A | HostCodes]).
 
 % Divide una lista di codici in segmenti separati da '.'
 split_segments([], [[]]).
+
 split_segments([46 | Rest], [[] | Segments]) :- % 46 = '.'
     split_segments(Rest, Segments).
+
 split_segments([Code | Rest], [[Code | Segment] | Segments]) :-
     split_segments(Rest, [Segment | Segments]).
 
-validate_segments([]). 
+validate_segments([]).
+
 validate_segments([[A |Segment] | Rest]) :-
     [A |Segment] \= [],
     identificatore_host(A),
@@ -227,7 +266,7 @@ path([C1 | PostAuthority], Path, PostPath) :-
     C1 \= 47,
     path_name([C1 | PostAuthority], Path, PostPath).
 
-%domain_name riscritto
+% domain_name riscritto
 
 path_name(PostAuthority, Path, PostPath) :-
     append(PathCodes, PostPath, PostAuthority),
@@ -239,12 +278,15 @@ path_name(PostAuthority, Path, PostPath) :-
 % Divide una lista di codici in segmenti separati da '/'
 
 split_path_segments([], [[]]).
+
 split_path_segments([47 | Rest], [[] | Segments]) :- % 47 = '/'
     split_path_segments(Rest, Segments).
+
 split_path_segments([Code | Rest], [[Code | Segment] | Segments]) :-
     split_path_segments(Rest, [Segment | Segments]).
 
 validate_path_segments([]).
+
 validate_path_segments([Segment | Rest]) :-
     Segment \= [],
     identificatore(Segment),
@@ -264,15 +306,19 @@ fragment([35 | PostQuery], Fragment, PostFragment) :- % 35 #
     identificatore(FragmentCodes),
     atom_codes(Fragment, FragmentCodes).
 
+/*
 path_zos([47 | PostAuthority], [], PostAuthority).
 
 path_zos(PostAuthority, [], PostAuthority).
+*/
 
 path_zos([C1 | PostAuthority], Path, PostPath) :-
     C1 = 47,
+    PathCodes = [A | _],
     append(PathCodes, PostPath, PostAuthority),
     length(PathCodes, Length44),
     Length44 =< 44,
+    code_type(A, alpha),
     id44(PathCodes),
     atom_codes(Path, PathCodes).
 
@@ -284,6 +330,10 @@ path_zos([C1 | PostAuthority], Path, PostPath) :-
     length(Id8Codes, Length8),
     Length44 =< 44,
     Length8 =< 8,
+    Id44Codes = [A | _],
+    Id8Codes = [B | _],
+    code_type(A, alpha),
+    code_type(B, alpha),
     id44(Id44Codes),
     id8(Id8Codes),
     append(PartialPathCodes, [41], PathCodes),
@@ -291,9 +341,11 @@ path_zos([C1 | PostAuthority], Path, PostPath) :-
 
 path_zos([C1 | PostAuthority], Path, PostPath) :-
     C1 \= 47,
+    PathCodes = [A | _],
     append(PathCodes, PostPath, [C1 | PostAuthority]),
     length(PathCodes, Length44),
     Length44 =< 44,
+    code_type(A, alpha),
     id44(PathCodes),
     atom_codes(Path, PathCodes).
 
@@ -306,6 +358,10 @@ path_zos([C1 | PostAuthority], Path, PostPath) :-
     length(Id8Codes, Length8),
     Length44 =< 44,
     Length8 =< 8,
+    Id44Codes = [A | _],
+    Id8Codes = [B | _],
+    code_type(A, alpha),
+    code_type(B, alpha),
     id44(Id44Codes),
     id8(Id8Codes),
     append(PartialPathCodes, [41], PathCodes),
