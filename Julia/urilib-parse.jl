@@ -387,7 +387,9 @@ path ::= <id44> ['(' <id8> ')']
 """
 function parse_zos_path(str :: String) :: Parser
     (id44, id44_rest) = parse_id44(str)
-    if !isempty(id44_rest) && first(id44_rest) == '('
+    if isempty(id44) && !isempty(id44_rest) && first(id44_rest) == '('
+        parser_error("Expected id44")
+    elseif !isempty(id44_rest) && first(id44_rest) == '('
         let (id8, id8_rest) = parse_id8(tail(id44_rest))
             if isempty(id8_rest) || first(id8_rest) != ')'
                 parser_error("Missing closing bracket `)`")
