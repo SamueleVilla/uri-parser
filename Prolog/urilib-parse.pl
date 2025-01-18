@@ -20,10 +20,17 @@ urilib_display(URI) :-
     format("Query: ~w~n", [Query]),
     format("Fragment: ~w~n", [Fragment]).
 
-% Controlla se il parse e quello inserito sono uguali e poi fa il display
-urilib_display(URIString, URIInput) :-
-    urilib_parse(URIString, URIInput),
-    urilib_display(URIInput).
+% Fa il display del URI su Stream
+urilib_display(URI, Stream) :-
+    URI = uri(Scheme, Userinfo, Host, Port, Path, Query, Fragment),
+    format(Stream, "Scheme: ~w~n", [Scheme]),
+    format(Stream, "Userinfo: ~w~n", [Userinfo]),
+    format(Stream, "Host: ~w~n", [Host]),
+    format(Stream, "Port: ~w~n", [Port]),
+    format(Stream, "Path: ~w~n", [Path]),
+    format(Stream, "Query: ~w~n", [Query]),
+    format(Stream, "Fragment: ~w~n", [Fragment]),
+    close(Stream).
 
 parse_scheme(Codes, Scheme, PostScheme) :-
     append(SchemeCodes, [58 | PostScheme], Codes), % 58 :
