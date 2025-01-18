@@ -533,7 +533,7 @@ urilib_fragment(uri :: URILib_structure) = uri.fragment
 
 function urilib_display(uri :: URILib_structure, stream = stdout)
     println(stream, "Scheme:      $(urilib_scheme(uri))")
-    println(stream, "Userinfo:    $(urilib_userInfo(uri))")
+    println(stream, "Userinfo:    $(urilib_userinfo(uri))")
     println(stream, "Host:        $(urilib_host(uri))")
     println(stream, "Port:        $(urilib_port(uri))")
     println(stream, "Path:        $(urilib_path(uri))")
